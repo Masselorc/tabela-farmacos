@@ -1,0 +1,1045 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HormoTracker - Dashboard Farmacocinético</title>
+    <!-- Importação do Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Fonte Moderna -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f4f6f9;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --border-color: #e0e0e0;
+            --primary: #2c3e50;
+            --primary-hover: #34495e;
+            --accent: #3498db;
+            --shadow: 0 4px 15px rgba(0,0,0,0.05);
+            --shadow-lg: 0 10px 30px rgba(0,0,0,0.15);
+            --radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* --- Header --- */
+        .top-panel {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 20px 25px;
+            box-shadow: var(--shadow);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .header-title {
+            font-size: 1.5rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 0;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 16px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button.btn-accent {
+            background-color: var(--accent);
+        }
+
+        button.btn-accent:hover {
+            background-color: #2980b9;
+        }
+
+        /* --- Lista de Protocolos Ativos --- */
+        .protocols-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .protocol-tag {
+            background-color: #f8f9fa;
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s, transform 0.1s;
+        }
+
+        .protocol-tag:hover {
+            border-color: var(--accent);
+            background-color: #f8fbfe;
+            transform: translateY(-1px);
+        }
+
+        .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .remove-btn {
+            background: none;
+            border: none;
+            color: #e74c3c;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0 0 0 5px;
+            line-height: 1;
+            background-color: transparent !important;
+            transition: color 0.2s;
+        }
+
+        .remove-btn:hover {
+            color: #c0392b;
+        }
+
+        /* --- Layout Principal (Em Coluna) --- */
+        .stacked-view {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            flex: 1;
+        }
+
+        .panel {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 25px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel h2 {
+            font-size: 1.2rem;
+            margin-bottom: 20px;
+            color: var(--primary);
+        }
+
+        /* --- Calendar --- */
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .calendar-header button {
+            background-color: transparent;
+            color: var(--primary);
+            border: 1px solid var(--border-color);
+            padding: 5px 10px;
+        }
+
+        .calendar-header button:hover {
+            background-color: #f0f0f0;
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+        }
+
+        .day-name {
+            text-align: center;
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            padding-bottom: 10px;
+        }
+
+        .calendar-cell {
+            background-color: #fff;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            min-height: 110px;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            position: relative;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        .calendar-cell:hover {
+            border-color: var(--accent);
+            background-color: #f8fbfe;
+        }
+
+        .calendar-cell.empty {
+            background-color: transparent;
+            border-color: transparent;
+            cursor: default;
+        }
+        
+        .calendar-cell.empty:hover {
+            border-color: transparent;
+            background-color: transparent;
+        }
+
+        .cell-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+            pointer-events: none;
+        }
+
+        .injection-icon {
+            font-size: 1.1rem;
+        }
+
+        .badges-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            pointer-events: none;
+        }
+
+        .badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            padding: 3px 6px;
+            border-radius: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        /* --- Chart --- */
+        .chart-wrapper {
+            flex: 1;
+            position: relative;
+            min-height: 400px;
+        }
+
+        /* --- Modal --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(3px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            width: 100%;
+            max-width: 550px;
+            padding: 30px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            color: var(--primary);
+            font-size: 1.4rem;
+        }
+
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+        }
+
+        .close-modal:hover {
+            color: var(--text-main);
+            background: none;
+        }
+
+        .form-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        input, select {
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+            width: 100%;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary);
+        }
+
+        input[type="color"] {
+            padding: 2px;
+            height: 40px;
+            cursor: pointer;
+        }
+        
+        .preset-select {
+            background-color: #f8fbfe;
+            border-color: var(--accent);
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        .weekdays-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 5px;
+        }
+
+        .weekday-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #f0f0f0;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s;
+            color: var(--text-muted);
+        }
+
+        .weekday-label input {
+            display: none; 
+        }
+
+        .weekday-label:has(input:checked) {
+            background-color: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .modal-actions {
+            margin-top: 25px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        #weeklyOptions {
+            display: none;
+            background-color: #f8fbfe;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px dashed #bcdcfa;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header & Resumo -->
+    <div class="top-panel">
+        <h1 class="header-title">📊 HormoTracker</h1>
+        <button class="btn-accent" onclick="openModal()">+ Adicionar Protocolo</button>
+        
+        <div id="protocolsList" class="protocols-list"></div>
+    </div>
+
+    <!-- Layout em Coluna: Calendário e Gráfico -->
+    <div class="stacked-view">
+        
+        <!-- Vista 1: Calendário -->
+        <div class="panel">
+            <div class="calendar-header">
+                <button id="prevMonth">&lt; Anterior</button>
+                <h2 id="monthYearDisplay" style="margin: 0;">Mês Ano</h2>
+                <button id="nextMonth">Próximo &gt;</button>
+            </div>
+            <div class="calendar-grid" id="calendarGrid">
+                <!-- Gerado via JS -->
+            </div>
+        </div>
+
+        <!-- Vista 2: Gráfico -->
+        <div class="panel">
+            <h2>Curva de Empilhamento (Mês Atual)</h2>
+            <div class="chart-wrapper">
+                <canvas id="stackChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Modal de Criação e Edição de Protocolo -->
+    <div class="modal-overlay" id="protocolModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Novo Protocolo</h2>
+                <button class="close-modal" onclick="closeModal()">&times;</button>
+            </div>
+            
+            <form id="protocolForm">
+                <div class="form-layout">
+                    
+                    <!-- Predefinições Rápidas -->
+                    <div class="form-group full-width">
+                        <label for="presetSelect">🧪 Predefinições Rápidas (Opcional)</label>
+                        <select id="presetSelect" class="preset-select" onchange="applyPreset()">
+                            <option value="">-- Selecione para preencher automaticamente --</option>
+                            <!-- Gerado via JS -->
+                        </select>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="drugName">Nome do Fármaco</label>
+                        <input type="text" id="drugName" placeholder="Ex: Retatrutida, Trembolona" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="halfLife">Meia-vida de Eliminação (Dias)</label>
+                        <input type="number" id="halfLife" step="0.01" min="0.01" placeholder="Ex: 6.0" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="tmax">Tempo para Pico (Tmax) (Dias)</label>
+                        <input type="number" id="tmax" step="0.1" min="0" placeholder="Ex: 2.0" value="0" required title="Use 0 para absorção imediata.">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="dose">Dosagem (mg)</label>
+                        <input type="number" id="dose" step="0.01" min="0.01" placeholder="Ex: 4" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="color">Cor no Gráfico</label>
+                        <input type="color" id="color" value="#e74c3c">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="startDate">A partir do dia:</label>
+                        <input type="date" id="startDate" required>
+                    </div>
+                    
+                    <div class="form-group full-width">
+                        <label for="recurrenceType">Frequência da Aplicação</label>
+                        <select id="recurrenceType" onchange="toggleWeeklyOptions()">
+                            <option value="single">Dose Única (Apenas no dia selecionado)</option>
+                            <option value="weekly">Dias específicos da semana</option>
+                        </select>
+                    </div>
+
+                    <!-- Opções Avançadas de Recorrência -->
+                    <div id="weeklyOptions" class="form-group full-width">
+                        <label>Selecione os dias da semana:</label>
+                        <div class="weekdays-group">
+                            <label class="weekday-label"><input type="checkbox" name="weekday" value="1"> Seg</label>
+                            <label class="weekday-label"><input type="checkbox" name="weekday" value="2"> Ter</label>
+                            <label class="weekday-label"><input type="checkbox" name="weekday" value="3"> Qua</label>
+                            <label class="weekday-label"><input type="checkbox" name="weekday" value="4"> Qui</label>
+                            <label class="weekday-label"><input type="checkbox" name="weekday" value="5"> Sex</label>
+                            <label class="weekday-label"><input type="checkbox" name="weekday" value="6"> Sáb</label>
+                            <label class="weekday-label"><input type="checkbox" name="weekday" value="0"> Dom</label>
+                        </div>
+
+                        <label style="margin-top: 15px;">Repetir por quantas semanas?</label>
+                        <input type="number" id="weeksCount" min="1" value="10" placeholder="Ex: 10">
+                    </div>
+
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" style="background-color: transparent; color: var(--text-muted); border: 1px solid var(--border-color);" onclick="closeModal()">Cancelar</button>
+                    <button type="submit" id="submitBtn">Salvar Protocolo</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // --- BASE DE DADOS: PREDEFINIÇÕES (PRESETS) COM TMAX ---
+        const commonDrugs = [
+            { name: "Retatrutida", halfLife: 6.0, tmax: 2.0, color: "#9b59b6" }, // Modelo 1 Compartimento
+            { name: "Enantato de Testosterona", halfLife: 6.0, tmax: 1.5, color: "#2ecc71" },
+            { name: "Enantato de Trembolona", halfLife: 6.0, tmax: 1.5, color: "#e74c3c" },
+            { name: "Enantato de Masteron", halfLife: 6.0, tmax: 1.5, color: "#3498db" }, 
+            { name: "Cipionato de Testosterona", halfLife: 7.0, tmax: 2.0, color: "#27ae60" }, 
+            { name: "Propionato de Testosterona", halfLife: 2.0, tmax: 0.5, color: "#1abc9c" }, 
+            { name: "Durateston (Blend)", halfLife: 7.5, tmax: 1.0, color: "#16a085" }, 
+            { name: "Decanoato de Nandrolona (Deca)", halfLife: 7.0, tmax: 2.0, color: "#f1c40f" },
+            { name: "Acetato de Trembolona", halfLife: 2.0, tmax: 0.5, color: "#c0392b" }, 
+            { name: "Undecanoato de Testosterona", halfLife: 21.0, tmax: 4.0, color: "#2c3e50" }, 
+            { name: "Primobolan (Enantato)", halfLife: 6.0, tmax: 1.5, color: "#8e44ad" }, 
+            { name: "Boldenona (Undecilenato)", halfLife: 14.0, tmax: 3.0, color: "#e67e22" }, 
+            { name: "Oxandrolona (Oral)", halfLife: 0.4, tmax: 0.1, color: "#d35400" }, // Absorção rápida oral (~2h)
+            { name: "Hemogenin (Oral)", halfLife: 0.4, tmax: 0.1, color: "#ff7979" }, 
+            { name: "Dianabol (Oral)", halfLife: 0.2, tmax: 0.1, color: "#f39c12" }, 
+            { name: "Clembuterol", halfLife: 1.5, tmax: 0.15, color: "#ff9f43" }
+        ];
+
+        // --- ESTADO DA APLICAÇÃO ---
+        let protocols = [];
+        let currentDate = new Date();
+        let chartInstance = null;
+        let editingProtocolId = null;
+
+        const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        const dayNames = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+        // Popula as predefinições no dropdown
+        function populatePresets() {
+            const select = document.getElementById('presetSelect');
+            commonDrugs.forEach((drug, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                // Exibe também o Tmax na lista
+                option.text = `${drug.name} (T1/2: ${drug.halfLife}d | Tmax: ${drug.tmax}d)`;
+                select.appendChild(option);
+            });
+        }
+
+        // Aplica os dados do dropdown nos campos
+        function applyPreset() {
+            const select = document.getElementById('presetSelect');
+            if (select.value === "") return;
+            
+            const drug = commonDrugs[select.value];
+            document.getElementById('drugName').value = drug.name;
+            document.getElementById('halfLife').value = drug.halfLife;
+            document.getElementById('tmax').value = drug.tmax || 0;
+            
+            if (drug.color) {
+                document.getElementById('color').value = drug.color;
+            }
+        }
+
+        // --- CONTROLE DO MODAL ---
+        function openModal(dateStr = null) {
+            editingProtocolId = null; 
+            document.getElementById('modalTitle').innerText = "Novo Protocolo";
+            document.getElementById('submitBtn').innerText = "Salvar Protocolo";
+            document.getElementById('protocolForm').reset();
+            document.getElementById('presetSelect').value = ""; 
+            
+            document.getElementById('protocolModal').classList.add('active');
+            
+            if (dateStr) {
+                document.getElementById('startDate').value = dateStr;
+                
+                const [y, m, d] = dateStr.split('-');
+                const dateObj = new Date(y, m - 1, d);
+                const dayOfWeek = dateObj.getDay();
+                
+                document.querySelectorAll('input[name="weekday"]').forEach(cb => cb.checked = false);
+                const cb = document.querySelector(`input[name="weekday"][value="${dayOfWeek}"]`);
+                if (cb) cb.checked = true;
+            } else {
+                document.getElementById('startDate').valueAsDate = new Date();
+            }
+            toggleWeeklyOptions();
+        }
+
+        function editProtocol(id) {
+            const protocol = protocols.find(p => p.id === id);
+            if (!protocol) return;
+
+            editingProtocolId = id; 
+            
+            document.getElementById('modalTitle').innerText = "Editar Protocolo";
+            document.getElementById('submitBtn').innerText = "Atualizar Protocolo";
+            document.getElementById('presetSelect').value = ""; 
+            
+            document.getElementById('drugName').value = protocol.name;
+            document.getElementById('halfLife').value = protocol.halfLife;
+            document.getElementById('tmax').value = protocol.tmax;
+            document.getElementById('dose').value = protocol.dose;
+            document.getElementById('color').value = protocol.color;
+            document.getElementById('startDate').value = protocol.startDate;
+            document.getElementById('recurrenceType').value = protocol.type;
+            document.getElementById('weeksCount').value = protocol.weeksCount;
+            
+            document.querySelectorAll('input[name="weekday"]').forEach(cb => cb.checked = false);
+            protocol.daysOfWeek.forEach(dayIndex => {
+                const cb = document.querySelector(`input[name="weekday"][value="${dayIndex}"]`);
+                if (cb) cb.checked = true;
+            });
+
+            toggleWeeklyOptions();
+            document.getElementById('protocolModal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('protocolModal').classList.remove('active');
+            document.getElementById('protocolForm').reset();
+            editingProtocolId = null;
+            toggleWeeklyOptions(); 
+        }
+
+        function toggleWeeklyOptions() {
+            const type = document.getElementById('recurrenceType').value;
+            const optionsDiv = document.getElementById('weeklyOptions');
+            if (type === 'weekly') {
+                optionsDiv.style.display = 'block';
+            } else {
+                optionsDiv.style.display = 'none';
+            }
+        }
+
+        // --- LÓGICA MATEMÁTICA CENTRAL (MODELO 1-COMPARTIMENTO) ---
+        function calculateActive(dose, halfLifeDays, tmaxDays, injectionTime, evalTime) {
+            const diffMs = evalTime - injectionTime;
+            const t = diffMs / (1000 * 60 * 60 * 24);
+            
+            if (t < 0) return 0;
+
+            // Se Tmax for 0, aplica o modelo IV em bolus antigo (absorção instantânea)
+            if (!tmaxDays || tmaxDays <= 0) {
+                return dose * Math.pow(0.5, t / halfLifeDays);
+            }
+
+            // Modelo de 1 compartimento com absorção extravascular (Bateman)
+            const k_slow = Math.LN2 / halfLifeDays; // Ke (Eliminação)
+            
+            // Tratamento de limite para evitar loops infinitos (O Tmax não pode ser matematicamente > 1.44 * HalfLife)
+            let safeTmax = tmaxDays;
+            if (safeTmax >= 1.44 * halfLifeDays) {
+                safeTmax = 1.4 * halfLifeDays;
+            }
+
+            // Busca Iterativa Simples para encontrar a Constante de Absorção (Ka) baseada no Tmax
+            let low = k_slow * 1.0001;
+            let high = 100.0;
+            let k_fast = (low + high) / 2; // Ka
+            
+            for(let i=0; i<50; i++) {
+                k_fast = (low + high) / 2;
+                let current_tmax = Math.log(k_fast / k_slow) / (k_fast - k_slow);
+                if (current_tmax > safeTmax) {
+                    low = k_fast; // Tmax muito alto -> precisa de Ka mais rápido
+                } else {
+                    high = k_fast;
+                }
+            }
+
+            // Equação: C(t) = (F * Dose * Ka) / (Vd * (Ka - Ke)) * (e^-Ke*t - e^-Ka*t)
+            // Assumindo Biodisponibilidade (F) e Volume de Distribuição proporcional (F/Vd = 1) para plotar em mg no corpo
+            const amount = dose * (k_fast / (k_fast - k_slow)) * (Math.exp(-k_slow * t) - Math.exp(-k_fast * t));
+            
+            return Math.max(0, amount);
+        }
+
+        function getInjectionDates(protocol, limitDate) {
+            let dates = [];
+            
+            const [sy, sm, sd] = protocol.startDate.split('-');
+            let current = new Date(sy, sm - 1, sd, 8, 0, 0, 0); // Injeções ocorrem sempre às 08:00
+            
+            let limit = new Date(limitDate);
+            limit.setHours(23, 59, 59, 999);
+
+            if (protocol.type === 'single') {
+                if (current <= limit) {
+                    dates.push(new Date(current));
+                }
+            } else if (protocol.type === 'weekly') {
+                let protocolEnd = new Date(sy, sm - 1, sd, 23, 59, 59, 999);
+                protocolEnd.setDate(protocolEnd.getDate() + (protocol.weeksCount * 7) - 1);
+                
+                let actualLimit = limit < protocolEnd ? limit : protocolEnd;
+                
+                let iterDate = new Date(current);
+                while (iterDate <= actualLimit) {
+                    if (protocol.daysOfWeek.includes(iterDate.getDay())) {
+                        dates.push(new Date(iterDate));
+                    }
+                    iterDate.setDate(iterDate.getDate() + 1);
+                }
+            }
+            return dates;
+        }
+
+        // --- GESTÃO DO FORMULÁRIO ---
+        document.getElementById('protocolForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const recurrenceType = document.getElementById('recurrenceType').value;
+            let daysOfWeek = [];
+            let weeksCount = 1;
+
+            if (recurrenceType === 'weekly') {
+                const checkboxes = document.querySelectorAll('input[name="weekday"]:checked');
+                checkboxes.forEach(cb => daysOfWeek.push(parseInt(cb.value)));
+                
+                if (daysOfWeek.length === 0) {
+                    alert("Selecione pelo menos um dia da semana para a recorrência!");
+                    return;
+                }
+                
+                weeksCount = parseInt(document.getElementById('weeksCount').value) || 1;
+            }
+
+            const protocolData = {
+                id: editingProtocolId ? editingProtocolId : Date.now(),
+                name: document.getElementById('drugName').value.trim(),
+                halfLife: parseFloat(document.getElementById('halfLife').value),
+                tmax: parseFloat(document.getElementById('tmax').value),
+                dose: parseFloat(document.getElementById('dose').value),
+                startDate: document.getElementById('startDate').value,
+                type: recurrenceType,
+                daysOfWeek: daysOfWeek,
+                weeksCount: weeksCount,
+                color: document.getElementById('color').value
+            };
+
+            if (editingProtocolId) {
+                const index = protocols.findIndex(p => p.id === editingProtocolId);
+                if (index !== -1) {
+                    protocols[index] = protocolData;
+                }
+            } else {
+                protocols.push(protocolData);
+            }
+
+            updateDashboard();
+            closeModal();
+        });
+
+        // --- RENDERIZAÇÃO DO CALENDÁRIO ---
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = ''; 
+
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+
+            document.getElementById('monthYearDisplay').innerText = `${monthNames[month]} ${year}`;
+
+            dayNames.forEach(day => {
+                const div = document.createElement('div');
+                div.className = 'day-name';
+                div.innerText = day;
+                grid.appendChild(div);
+            });
+
+            const firstDayOfMonth = new Date(year, month, 1);
+            let startingDay = firstDayOfMonth.getDay() - 1; 
+            if (startingDay === -1) startingDay = 6; 
+
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            for (let i = 0; i < startingDay; i++) {
+                const emptyCell = document.createElement('div');
+                emptyCell.className = 'calendar-cell empty';
+                grid.appendChild(emptyCell);
+            }
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = document.createElement('div');
+                cell.className = 'calendar-cell';
+                
+                const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                
+                cell.onclick = () => openModal(dateString);
+                
+                const cellHeader = document.createElement('div');
+                cellHeader.className = 'cell-header';
+                cellHeader.innerHTML = `<span>${day}</span>`;
+                
+                // MUDANÇA: Como as injeções ocorrem às 08:00 e levam tempo para absorver,
+                // vamos avaliar o calendário às 20:00 (fim do dia) para mostrar um load diário realista.
+                const evalDate = new Date(year, month, day, 20, 0, 0);
+                let hasInjectionToday = false;
+                
+                const badgesContainer = document.createElement('div');
+                badgesContainer.className = 'badges-container';
+
+                const dailyAccumulator = {};
+
+                protocols.forEach(p => {
+                    const injections = getInjectionDates(p, evalDate);
+                    
+                    const injectedToday = injections.some(inj => 
+                        inj.getDate() === day && inj.getMonth() === month && inj.getFullYear() === year
+                    );
+                    if (injectedToday) hasInjectionToday = true;
+
+                    let totalActive = 0;
+                    injections.forEach(inj => {
+                        totalActive += calculateActive(p.dose, p.halfLife, p.tmax, inj, evalDate);
+                    });
+
+                    if (totalActive > 0) {
+                        if (!dailyAccumulator[p.name]) {
+                            dailyAccumulator[p.name] = { total: 0, color: p.color };
+                        }
+                        dailyAccumulator[p.name].total += totalActive;
+                    }
+                });
+
+                Object.keys(dailyAccumulator).forEach(drugName => {
+                    const drugData = dailyAccumulator[drugName];
+                    if (drugData.total >= 0.01) {
+                        const badge = document.createElement('div');
+                        badge.className = 'badge';
+                        badge.style.backgroundColor = drugData.color;
+                        const displayVal = parseFloat(drugData.total.toFixed(2));
+                        badge.innerText = `${drugName}: ${displayVal}mg`;
+                        badgesContainer.appendChild(badge);
+                    }
+                });
+
+                if (hasInjectionToday) {
+                    cellHeader.innerHTML += `<span class="injection-icon" title="Dia de Aplicação">💉</span>`;
+                }
+
+                cell.appendChild(cellHeader);
+                cell.appendChild(badgesContainer);
+                grid.appendChild(cell);
+            }
+        }
+
+        document.getElementById('prevMonth').addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() - 1);
+            updateDashboard();
+        });
+        document.getElementById('nextMonth').addEventListener('click', () => {
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            updateDashboard();
+        });
+
+        // --- RENDERIZAÇÃO DO GRÁFICO (ALTA RESOLUÇÃO) ---
+        function renderChart() {
+            const ctx = document.getElementById('stackChart').getContext('2d');
+            
+            const year = currentDate.getFullYear();
+            const month = currentDate.getMonth();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            
+            const labels = [];
+            const groupedDatasets = {};
+
+            // MUDANÇA: Alta resolução - Calcula a concentração 4 vezes por dia (0h, 6h, 12h, 18h) para exibir a curva de absorção suave
+            for (let day = 1; day <= daysInMonth; day++) {
+                labels.push(`D${day}`);
+                labels.push(''); // Oculta label intermediária para não poluir
+                labels.push('');
+                labels.push('');
+            }
+
+            protocols.forEach(p => {
+                if (!groupedDatasets[p.name]) {
+                    groupedDatasets[p.name] = {
+                        data: [],
+                        color: p.color
+                    };
+                }
+
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const hours = [0, 6, 12, 18];
+                    for (let hour of hours) {
+                        const evalDate = new Date(year, month, day, hour, 0, 0);
+                        const injections = getInjectionDates(p, evalDate);
+                        
+                        let totalActive = 0;
+                        injections.forEach(inj => {
+                            totalActive += calculateActive(p.dose, p.halfLife, p.tmax, inj, evalDate);
+                        });
+                        
+                        groupedDatasets[p.name].data.push(totalActive);
+                    }
+                }
+            });
+
+            const datasets = Object.keys(groupedDatasets).map(drugName => {
+                const group = groupedDatasets[drugName];
+                const formattedData = group.data.map(val => parseFloat(val.toFixed(2)));
+                let bgColor = group.color + '33';
+
+                return {
+                    label: drugName,
+                    data: formattedData,
+                    borderColor: group.color,
+                    backgroundColor: bgColor,
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4, // Permite as curvas em formato de colina
+                    pointRadius: 0, // Remove as bolinhas para focar na curva
+                    pointHitRadius: 10,
+                };
+            });
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: datasets
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false,
+                    },
+                    plugins: {
+                        legend: { position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                title: function(context) {
+                                    // Limpa o título do tooltip para os sub-pontos
+                                    let idx = context[0].dataIndex;
+                                    let day = Math.floor(idx / 4) + 1;
+                                    let h = (idx % 4) * 6;
+                                    return `Dia ${day} às ${h.toString().padStart(2, '0')}:00`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'Concentração Ativa (mg)' }
+                        },
+                        x: { 
+                            grid: { display: false },
+                            ticks: { maxRotation: 0 }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- ATUALIZAR ECRÃ ---
+        function updateDashboard() {
+            renderCalendar();
+            renderChart();
+            renderProtocolsList();
+        }
+
+        // --- LISTA DE PROTOCOLOS ---
+        function renderProtocolsList() {
+            const list = document.getElementById('protocolsList');
+            list.innerHTML = '';
+            
+            protocols.forEach(p => {
+                const tag = document.createElement('div');
+                tag.className = 'protocol-tag';
+                tag.onclick = () => editProtocol(p.id);
+                
+                let detailText = p.type === 'single' ? 'Única' : `${p.weeksCount} sem.`;
+                
+                tag.innerHTML = `
+                    <div class="color-dot" style="background-color: ${p.color}"></div>
+                    <div style="flex: 1;">
+                        <strong>${p.name}</strong> (${p.dose}mg | ${detailText})
+                    </div>
+                    <button type="button" class="remove-btn" onclick="event.stopPropagation(); removeProtocol(${p.id})" title="Remover">&times;</button>
+                `;
+                list.appendChild(tag);
+            });
+        }
+
+        window.removeProtocol = function(id) {
+            protocols = protocols.filter(p => p.id !== id);
+            updateDashboard();
+        };
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('protocolModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Inicialização
+        populatePresets(); 
+        updateDashboard();
+
+    </script>
+</body>
+</html>
