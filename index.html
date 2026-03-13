@@ -559,7 +559,6 @@
         ];
 
         // --- ESTADO DA APLICAÇÃO ---
-        // Tenta buscar protocolos salvos no cache, se não houver, inicia vazio
         let protocols = JSON.parse(localStorage.getItem('hormoTrackerProtocols')) || [];
         let currentDate = new Date();
         let chartInstance = null;
@@ -568,24 +567,20 @@
         const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
         const dayNames = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
-        // Função para salvar os protocolos no cache do navegador
         function saveProtocols() {
             localStorage.setItem('hormoTrackerProtocols', JSON.stringify(protocols));
         }
 
-        // Popula as predefinições no dropdown
         function populatePresets() {
             const select = document.getElementById('presetSelect');
             commonDrugs.forEach((drug, index) => {
                 const option = document.createElement('option');
                 option.value = index;
-                // Exibe também o Tmax na lista
                 option.text = `${drug.name} (T1/2: ${drug.halfLife}d | Tmax: ${drug.tmax}d)`;
                 select.appendChild(option);
             });
         }
 
-        // Aplica os dados do dropdown nos campos
         function applyPreset() {
             const select = document.getElementById('presetSelect');
             if (select.value === "") return;
@@ -672,46 +667,39 @@
             }
         }
 
-        // --- LÓGICA MATEMÁTICA CENTRAL (MODELO 1-COMPARTIMENTO) ---
+        // --- LÓGICA MATEMÁTICA CENTRAL ---
         function calculateActive(dose, halfLifeDays, tmaxDays, injectionTime, evalTime) {
             const diffMs = evalTime - injectionTime;
             const t = diffMs / (1000 * 60 * 60 * 24);
             
             if (t < 0) return 0;
 
-            // Se Tmax for 0, aplica o modelo IV em bolus antigo (absorção instantânea)
             if (!tmaxDays || tmaxDays <= 0) {
                 return dose * Math.pow(0.5, t / halfLifeDays);
             }
 
-            // Modelo de 1 compartimento com absorção extravascular (Bateman)
-            const k_slow = Math.LN2 / halfLifeDays; // Ke (Eliminação)
+            const k_slow = Math.LN2 / halfLifeDays; 
             
-            // Tratamento de limite para evitar loops infinitos (O Tmax não pode ser matematicamente > 1.44 * HalfLife)
             let safeTmax = tmaxDays;
             if (safeTmax >= 1.44 * halfLifeDays) {
                 safeTmax = 1.4 * halfLifeDays;
             }
 
-            // Busca Iterativa Simples para encontrar a Constante de Absorção (Ka) baseada no Tmax
             let low = k_slow * 1.0001;
             let high = 100.0;
-            let k_fast = (low + high) / 2; // Ka
+            let k_fast = (low + high) / 2; 
             
             for(let i=0; i<50; i++) {
                 k_fast = (low + high) / 2;
                 let current_tmax = Math.log(k_fast / k_slow) / (k_fast - k_slow);
                 if (current_tmax > safeTmax) {
-                    low = k_fast; // Tmax muito alto -> precisa de Ka mais rápido
+                    low = k_fast; 
                 } else {
                     high = k_fast;
                 }
             }
 
-            // Equação: C(t) = (F * Dose * Ka) / (Vd * (Ka - Ke)) * (e^-Ke*t - e^-Ka*t)
-            // Assumindo Biodisponibilidade (F) e Volume de Distribuição proporcional (F/Vd = 1) para plotar em mg no corpo
             const amount = dose * (k_fast / (k_fast - k_slow)) * (Math.exp(-k_slow * t) - Math.exp(-k_fast * t));
-            
             return Math.max(0, amount);
         }
 
@@ -719,7 +707,7 @@
             let dates = [];
             
             const [sy, sm, sd] = protocol.startDate.split('-');
-            let current = new Date(sy, sm - 1, sd, 8, 0, 0, 0); // Injeções ocorrem sempre às 08:00
+            let current = new Date(sy, sm - 1, sd, 8, 0, 0, 0); 
             
             let limit = new Date(limitDate);
             limit.setHours(23, 59, 59, 999);
@@ -787,9 +775,7 @@
                 protocols.push(protocolData);
             }
 
-            // Salva a alteração no cache do navegador
             saveProtocols();
-
             updateDashboard();
             closeModal();
         });
@@ -835,8 +821,6 @@
                 cellHeader.className = 'cell-header';
                 cellHeader.innerHTML = `<span>${day}</span>`;
                 
-                // MUDANÇA: Como as injeções ocorrem às 08:00 e levam tempo para absorver,
-                // vamos avaliar o calendário às 20:00 (fim do dia) para mostrar um load diário realista.
                 const evalDate = new Date(year, month, day, 20, 0, 0);
                 let hasInjectionToday = false;
                 
@@ -897,7 +881,7 @@
             updateDashboard();
         });
 
-        // --- RENDERIZAÇÃO DO GRÁFICO (ALTA RESOLUÇÃO) ---
+        // --- RENDERIZAÇÃO DO GRÁFICO (ALTA RESOLUÇÃO E SINCRONIZADA) ---
         function renderChart() {
             const ctx = document.getElementById('stackChart').getContext('2d');
             
@@ -906,61 +890,63 @@
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             
             const labels = [];
-            const groupedDatasets = {};
-
-            // Criar labels do eixo X (4 pontos por dia)
+            // O uso de 8h como ponto avaliado alinha perfeitamente a matemática no momento exato da injeção
             for (let day = 1; day <= daysInMonth; day++) {
                 labels.push(`D${day} 0h`);
-                labels.push(`D${day} 6h`);
+                labels.push(`D${day} 8h`);
                 labels.push(`D${day} 12h`);
                 labels.push(`D${day} 18h`);
             }
 
-            // Inicializa a estrutura de dados agrupada ANTES do loop de tempo
-            protocols.forEach(p => {
-                if (!groupedDatasets[p.name]) {
-                    // Preenche o array com 0 para todos os pontos de tempo (dias * 4)
-                    groupedDatasets[p.name] = {
-                        data: new Array(daysInMonth * 4).fill(0),
-                        color: p.color
-                    };
-                }
+            // Descobrir nomes únicos de fármacos em todos os protocolos ativos
+            const uniqueDrugs = [...new Set(protocols.map(p => p.name))];
+            const groupedDatasets = {};
+
+            // Inicializar cada fármaco com um array vazio perfeitamente alinhado com o eixo X (120 slots)
+            uniqueDrugs.forEach(drugName => {
+                const protoRef = protocols.find(p => p.name === drugName);
+                groupedDatasets[drugName] = {
+                    data: new Array(daysInMonth * 4).fill(0),
+                    color: protoRef.color
+                };
             });
 
-            // Avaliar o limite do mês inteiro
+            // Avaliar o limite do mês inteiro para garantir que NENHUMA injeção do mês seja esquecida
             const endOfMonth = new Date(year, month, daysInMonth, 23, 59, 59);
+            const allInjectionsByProtocol = protocols.map(p => getInjectionDates(p, endOfMonth));
 
-            // Para cada protocolo na lista (mesmo que tenham o mesmo nome)
-            protocols.forEach(p => {
-                const allInjections = getInjectionDates(p, endOfMonth);
-                let timeIndex = 0; // Índice para a array de dados (0 a 119)
-
-                for (let day = 1; day <= daysInMonth; day++) {
-                    const hours = [0, 6, 12, 18];
+            let timeIndex = 0;
+            // Varredura de Tempo Universal (Time-Step Simulation)
+            for (let day = 1; day <= daysInMonth; day++) {
+                const hours = [0, 8, 12, 18]; // 8h capta o momento exato em que a agulha entra no corpo
+                
+                for (let hour of hours) {
+                    const evalDate = new Date(year, month, day, hour, 0, 0);
                     
-                    for (let hour of hours) {
-                        const evalDate = new Date(year, month, day, hour, 0, 0);
-                        let totalActiveForThisEval = 0;
+                    // Neste momento exato do tempo, somamos o resíduo de TODOS os protocolos
+                    protocols.forEach((p, idx) => {
+                        const injections = allInjectionsByProtocol[idx];
+                        let activeFromThisProtocol = 0;
                         
-                        // Soma o ativo de todas as injeções DESTE protocolo
-                        allInjections.forEach(inj => {
-                            if (evalDate >= inj) { 
-                                totalActiveForThisEval += calculateActive(p.dose, p.halfLife, p.tmax, inj, evalDate);
+                        injections.forEach(inj => {
+                            if (evalDate >= inj) {
+                                activeFromThisProtocol += calculateActive(p.dose, p.halfLife, p.tmax, inj, evalDate);
                             }
                         });
                         
-                        // MUDANÇA CRUCIAL: Acumula o valor na posição correta do array do Fármaco
-                        // Usamos += para que, se houver outro protocolo com o mesmo nome, os valores se somem!
-                        groupedDatasets[p.name].data[timeIndex] += totalActiveForThisEval;
-                        timeIndex++;
-                    }
+                        // Garante a sobreposição absoluta sem sobrescrever dados anteriores
+                        groupedDatasets[p.name].data[timeIndex] += activeFromThisProtocol;
+                    });
+                    
+                    timeIndex++;
                 }
-            });
+            }
 
-            const datasets = Object.keys(groupedDatasets).map(drugName => {
+            // Converter a matemática somada em linhas visuais para o Chart.js
+            const datasets = uniqueDrugs.map(drugName => {
                 const group = groupedDatasets[drugName];
                 const formattedData = group.data.map(val => parseFloat(val.toFixed(2)));
-                let bgColor = group.color + '33';
+                let bgColor = group.color + '33'; // Transparência na área sob a curva
 
                 return {
                     label: drugName,
@@ -1053,7 +1039,6 @@
 
         window.removeProtocol = function(id) {
             protocols = protocols.filter(p => p.id !== id);
-            // Salva a alteração no cache após remover
             saveProtocols();
             updateDashboard();
         };
