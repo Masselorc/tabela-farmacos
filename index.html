@@ -908,34 +908,51 @@
             const labels = [];
             const groupedDatasets = {};
 
-            // MUDANÇA: Alta resolução - Calcula a concentração 4 vezes por dia (0h, 6h, 12h, 18h) para exibir a curva de absorção suave
+            // Criar labels do eixo X (4 pontos por dia)
             for (let day = 1; day <= daysInMonth; day++) {
-                labels.push(`D${day}`);
-                labels.push(''); // Oculta label intermediária para não poluir
-                labels.push('');
-                labels.push('');
+                labels.push(`D${day} 0h`);
+                labels.push(`D${day} 6h`);
+                labels.push(`D${day} 12h`);
+                labels.push(`D${day} 18h`);
             }
 
+            // Inicializa a estrutura de dados agrupada ANTES do loop de tempo
             protocols.forEach(p => {
                 if (!groupedDatasets[p.name]) {
+                    // Preenche o array com 0 para todos os pontos de tempo (dias * 4)
                     groupedDatasets[p.name] = {
-                        data: [],
+                        data: new Array(daysInMonth * 4).fill(0),
                         color: p.color
                     };
                 }
+            });
+
+            // Avaliar o limite do mês inteiro
+            const endOfMonth = new Date(year, month, daysInMonth, 23, 59, 59);
+
+            // Para cada protocolo na lista (mesmo que tenham o mesmo nome)
+            protocols.forEach(p => {
+                const allInjections = getInjectionDates(p, endOfMonth);
+                let timeIndex = 0; // Índice para a array de dados (0 a 119)
 
                 for (let day = 1; day <= daysInMonth; day++) {
                     const hours = [0, 6, 12, 18];
+                    
                     for (let hour of hours) {
                         const evalDate = new Date(year, month, day, hour, 0, 0);
-                        const injections = getInjectionDates(p, evalDate);
+                        let totalActiveForThisEval = 0;
                         
-                        let totalActive = 0;
-                        injections.forEach(inj => {
-                            totalActive += calculateActive(p.dose, p.halfLife, p.tmax, inj, evalDate);
+                        // Soma o ativo de todas as injeções DESTE protocolo
+                        allInjections.forEach(inj => {
+                            if (evalDate >= inj) { 
+                                totalActiveForThisEval += calculateActive(p.dose, p.halfLife, p.tmax, inj, evalDate);
+                            }
                         });
                         
-                        groupedDatasets[p.name].data.push(totalActive);
+                        // MUDANÇA CRUCIAL: Acumula o valor na posição correta do array do Fármaco
+                        // Usamos += para que, se houver outro protocolo com o mesmo nome, os valores se somem!
+                        groupedDatasets[p.name].data[timeIndex] += totalActiveForThisEval;
+                        timeIndex++;
                     }
                 }
             });
@@ -952,8 +969,8 @@
                     backgroundColor: bgColor,
                     borderWidth: 3,
                     fill: true,
-                    tension: 0.4, // Permite as curvas em formato de colina
-                    pointRadius: 0, // Remove as bolinhas para focar na curva
+                    tension: 0.4, 
+                    pointRadius: 0, 
                     pointHitRadius: 10,
                 };
             });
@@ -980,11 +997,7 @@
                         tooltip: {
                             callbacks: {
                                 title: function(context) {
-                                    // Limpa o título do tooltip para os sub-pontos
-                                    let idx = context[0].dataIndex;
-                                    let day = Math.floor(idx / 4) + 1;
-                                    let h = (idx % 4) * 6;
-                                    return `Dia ${day} às ${h.toString().padStart(2, '0')}:00`;
+                                    return context[0].label;
                                 }
                             }
                         }
@@ -996,7 +1009,12 @@
                         },
                         x: { 
                             grid: { display: false },
-                            ticks: { maxRotation: 0 }
+                            ticks: { 
+                                maxRotation: 0,
+                                callback: function(val, index) {
+                                    return index % 4 === 0 ? this.getLabelForValue(val).split(' ')[0] : '';
+                                }
+                            }
                         }
                     }
                 }
