@@ -559,13 +559,19 @@
         ];
 
         // --- ESTADO DA APLICAÇÃO ---
-        let protocols = [];
+        // Tenta buscar protocolos salvos no cache, se não houver, inicia vazio
+        let protocols = JSON.parse(localStorage.getItem('hormoTrackerProtocols')) || [];
         let currentDate = new Date();
         let chartInstance = null;
         let editingProtocolId = null;
 
         const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
         const dayNames = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+
+        // Função para salvar os protocolos no cache do navegador
+        function saveProtocols() {
+            localStorage.setItem('hormoTrackerProtocols', JSON.stringify(protocols));
+        }
 
         // Popula as predefinições no dropdown
         function populatePresets() {
@@ -780,6 +786,9 @@
             } else {
                 protocols.push(protocolData);
             }
+
+            // Salva a alteração no cache do navegador
+            saveProtocols();
 
             updateDashboard();
             closeModal();
@@ -1026,6 +1035,8 @@
 
         window.removeProtocol = function(id) {
             protocols = protocols.filter(p => p.id !== id);
+            // Salva a alteração no cache após remover
+            saveProtocols();
             updateDashboard();
         };
 
