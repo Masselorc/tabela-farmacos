@@ -293,6 +293,38 @@
             min-height: 400px;
         }
 
+        /* --- Individual Charts Grid --- */
+        .individual-charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: -10px; 
+        }
+
+        .individual-chart-panel {
+            background-color: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .individual-chart-panel h3 {
+            font-size: 1.1rem;
+            margin-bottom: 15px;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .individual-chart-wrapper {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+
         /* --- Modal --- */
         .modal-overlay {
             position: fixed;
@@ -473,12 +505,17 @@
             </div>
         </div>
 
-        <!-- Vista 2: Gráfico -->
+        <!-- Vista 2: Gráfico Geral (Empilhamento) -->
         <div class="panel">
-            <h2>Curva de Empilhamento (Mês Atual)</h2>
+            <h2>Curva de Empilhamento Geral (Mês Atual)</h2>
             <div class="chart-wrapper">
                 <canvas id="stackChart"></canvas>
             </div>
+        </div>
+
+        <!-- Vista 3: Gráficos Individuais Dinâmicos -->
+        <div id="individualChartsContainer" class="individual-charts-grid">
+            <!-- Gerado via JS -->
         </div>
 
     </div>
@@ -504,7 +541,7 @@
                     </div>
 
                     <div class="form-group full-width">
-                        <label for="drugName">Nome do Fármaco</label>
+                        <label for="drugName">Nome do Fármaco (Ou Blend)</label>
                         <input type="text" id="drugName" placeholder="Ex: Retatrutida, Trembolona" required>
                     </div>
                     
@@ -515,12 +552,12 @@
 
                     <div class="form-group">
                         <label for="tmax">Tempo para Pico (Tmax) (Dias)</label>
-                        <input type="number" id="tmax" step="0.1" min="0" placeholder="Ex: 2.0" value="0" required title="Use 0 para absorção imediata.">
+                        <input type="number" id="tmax" step="0.01" min="0" placeholder="Ex: 2.0" value="0" required title="Use 0 para absorção imediata.">
                     </div>
                     
                     <div class="form-group">
-                        <label for="dose">Dosagem (mg)</label>
-                        <input type="number" id="dose" step="0.01" min="0.01" placeholder="Ex: 4" required>
+                        <label for="dose">Dosagem Total (mg)</label>
+                        <input type="number" id="dose" step="0.01" min="0.01" placeholder="Ex: 250" required>
                     </div>
 
                     <div class="form-group">
@@ -571,19 +608,29 @@
     <script>
         // --- BASE DE DADOS: PREDEFINIÇÕES (PRESETS) COM TMAX ---
         const commonDrugs = [
-            { name: "Retatrutida", halfLife: 6.0, tmax: 2.0, color: "#9b59b6" }, // Modelo 1 Compartimento
+            { name: "Retatrutida", halfLife: 6.0, tmax: 2.0, color: "#9b59b6" }, 
+            // NOVO: BLEND DURATESTON
+            { 
+                name: "Durateston LANDERGOLD (Blend)", 
+                isBlend: true, 
+                color: "#27ae60",
+                esters: [
+                    { suffix: " - Propionato", proportion: 0.20, halfLife: 2.0, tmax: 5.5 / 24, color: "#1abc9c" }, // ~0.23 dias, Verde Claro
+                    { suffix: " - Fenilpropionato", proportion: 0.40, halfLife: 3.0, tmax: 2.0, color: "#2ecc71" }, // Verde Brilhante
+                    { suffix: " - Isocaproato", proportion: 0.40, halfLife: 8.0, tmax: 1.5, color: "#27ae60" }  // Verde Escuro
+                ]
+            },
             { name: "Enantato de Testosterona", halfLife: 6.0, tmax: 1.5, color: "#2ecc71" },
             { name: "Enantato de Trembolona", halfLife: 6.0, tmax: 1.5, color: "#e74c3c" },
             { name: "Enantato de Masteron", halfLife: 6.0, tmax: 1.5, color: "#3498db" }, 
             { name: "Cipionato de Testosterona", halfLife: 7.0, tmax: 2.0, color: "#27ae60" }, 
-            { name: "Propionato de Testosterona", halfLife: 2.0, tmax: 0.5, color: "#1abc9c" }, 
-            { name: "Durateston (Blend)", halfLife: 7.5, tmax: 1.0, color: "#16a085" }, 
+            { name: "Propionato de Testosterona", halfLife: 2.0, tmax: 0.23, color: "#1abc9c" }, 
             { name: "Decanoato de Nandrolona (Deca)", halfLife: 7.0, tmax: 2.0, color: "#f1c40f" },
             { name: "Acetato de Trembolona", halfLife: 2.0, tmax: 0.5, color: "#c0392b" }, 
             { name: "Undecanoato de Testosterona", halfLife: 21.0, tmax: 4.0, color: "#2c3e50" }, 
             { name: "Primobolan (Enantato)", halfLife: 6.0, tmax: 1.5, color: "#8e44ad" }, 
             { name: "Boldenona (Undecilenato)", halfLife: 14.0, tmax: 3.0, color: "#e67e22" }, 
-            { name: "Oxandrolona (Oral)", halfLife: 0.4, tmax: 0.1, color: "#d35400" }, // Absorção rápida oral (~2h)
+            { name: "Oxandrolona (Oral)", halfLife: 0.4, tmax: 0.1, color: "#d35400" },
             { name: "Hemogenin (Oral)", halfLife: 0.4, tmax: 0.1, color: "#ff7979" }, 
             { name: "Dianabol (Oral)", halfLife: 0.2, tmax: 0.1, color: "#f39c12" }, 
             { name: "Clembuterol", halfLife: 1.5, tmax: 0.15, color: "#ff9f43" }
@@ -593,6 +640,7 @@
         let protocols = JSON.parse(localStorage.getItem('hormoTrackerProtocols')) || [];
         let currentDate = new Date();
         let chartInstance = null;
+        let individualChartInstances = {}; 
         let editingProtocolId = null;
 
         const monthNames = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -607,22 +655,54 @@
             commonDrugs.forEach((drug, index) => {
                 const option = document.createElement('option');
                 option.value = index;
-                option.text = `${drug.name} (T1/2: ${drug.halfLife}d | Tmax: ${drug.tmax}d)`;
+                if (drug.isBlend) {
+                    option.text = `🧪 ${drug.name.replace(' (Blend)', '')} (Múltiplos Ésteres)`;
+                } else {
+                    option.text = `${drug.name} (T1/2: ${drug.halfLife}d | Tmax: ${drug.tmax}d)`;
+                }
                 select.appendChild(option);
             });
         }
 
+        // Função para repor os inputs para o estado normal (habilitados)
+        function resetFormInputs() {
+            document.getElementById('halfLife').disabled = false;
+            document.getElementById('tmax').disabled = false;
+            document.getElementById('color').disabled = false;
+            document.getElementById('halfLife').required = true;
+            document.getElementById('tmax').required = true;
+            document.getElementById('halfLife').placeholder = 'Ex: 6.0';
+            document.getElementById('tmax').placeholder = 'Ex: 2.0';
+        }
+
         function applyPreset() {
             const select = document.getElementById('presetSelect');
-            if (select.value === "") return;
+            if (select.value === "") {
+                resetFormInputs();
+                return;
+            }
             
             const drug = commonDrugs[select.value];
             document.getElementById('drugName').value = drug.name;
-            document.getElementById('halfLife').value = drug.halfLife;
-            document.getElementById('tmax').value = drug.tmax || 0;
             
-            if (drug.color) {
-                document.getElementById('color').value = drug.color;
+            if (drug.isBlend) {
+                // Se for um blend, bloqueamos as entradas únicas pois o sistema vai usar as propriedades internas do array
+                document.getElementById('halfLife').value = '';
+                document.getElementById('tmax').value = '';
+                document.getElementById('halfLife').disabled = true;
+                document.getElementById('tmax').disabled = true;
+                document.getElementById('halfLife').required = false;
+                document.getElementById('tmax').required = false;
+                document.getElementById('color').disabled = true;
+                document.getElementById('halfLife').placeholder = 'Auto (Blend: 3 Ésteres)';
+                document.getElementById('tmax').placeholder = 'Auto (Blend: 3 Ésteres)';
+            } else {
+                resetFormInputs();
+                document.getElementById('halfLife').value = drug.halfLife;
+                document.getElementById('tmax').value = drug.tmax || 0;
+                if (drug.color) {
+                    document.getElementById('color').value = drug.color;
+                }
             }
         }
 
@@ -631,6 +711,8 @@
             editingProtocolId = null; 
             document.getElementById('modalTitle').innerText = "Novo Protocolo";
             document.getElementById('submitBtn').innerText = "Salvar Protocolo";
+            
+            resetFormInputs(); // Garante que a janela abre limpa e funcional
             document.getElementById('protocolForm').reset();
             document.getElementById('presetSelect').value = ""; 
             
@@ -660,6 +742,8 @@
             
             document.getElementById('modalTitle').innerText = "Editar Protocolo";
             document.getElementById('submitBtn').innerText = "Atualizar Protocolo";
+            
+            resetFormInputs(); // Para edição, todos os campos são manuais e editáveis
             document.getElementById('presetSelect').value = ""; 
             
             document.getElementById('drugName').value = protocol.name;
@@ -683,6 +767,7 @@
 
         function closeModal() {
             document.getElementById('protocolModal').classList.remove('active');
+            resetFormInputs();
             document.getElementById('protocolForm').reset();
             editingProtocolId = null;
             toggleWeeklyOptions(); 
@@ -764,7 +849,7 @@
             return dates;
         }
 
-        // --- GESTÃO DO FORMULÁRIO ---
+        // --- GESTÃO DO FORMULÁRIO (INTERCEPÇÃO DE BLENDS) ---
         document.getElementById('protocolForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -784,26 +869,63 @@
                 weeksCount = parseInt(document.getElementById('weeksCount').value) || 1;
             }
 
-            const protocolData = {
-                id: editingProtocolId ? editingProtocolId : Date.now(),
-                name: document.getElementById('drugName').value.trim(),
-                halfLife: parseFloat(document.getElementById('halfLife').value),
-                tmax: parseFloat(document.getElementById('tmax').value),
-                dose: parseFloat(document.getElementById('dose').value),
-                startDate: document.getElementById('startDate').value,
-                type: recurrenceType,
-                daysOfWeek: daysOfWeek,
-                weeksCount: weeksCount,
-                color: document.getElementById('color').value
-            };
+            // Identificar se o utilizador está a tentar submeter uma predefinição "Blend"
+            const selectedPresetIndex = document.getElementById('presetSelect').value;
+            let isBlend = false;
+            let blendData = null;
 
-            if (editingProtocolId) {
-                const index = protocols.findIndex(p => p.id === editingProtocolId);
-                if (index !== -1) {
-                    protocols[index] = protocolData;
+            if (selectedPresetIndex !== "") {
+                const drug = commonDrugs[selectedPresetIndex];
+                // Verifica se ele não apagou o nome do preset manualmente
+                if (drug.isBlend && document.getElementById('drugName').value.trim() === drug.name) {
+                    isBlend = true;
+                    blendData = drug;
                 }
+            }
+
+            const totalDose = parseFloat(document.getElementById('dose').value);
+            const baseId = editingProtocolId ? editingProtocolId : Date.now();
+
+            if (isBlend) {
+                // Se for um Blend (ex: Durateston), dividimos a dose e criamos 3 protocolos
+                blendData.esters.forEach((ester, index) => {
+                    const protocolData = {
+                        id: baseId + index, // IDs únicos sequenciais
+                        name: blendData.name.replace(' (Blend)', '') + ester.suffix,
+                        halfLife: ester.halfLife,
+                        tmax: ester.tmax,
+                        dose: totalDose * ester.proportion, // Divisão automática da dosagem
+                        startDate: document.getElementById('startDate').value,
+                        type: recurrenceType,
+                        daysOfWeek: [...daysOfWeek],
+                        weeksCount: weeksCount,
+                        color: ester.color
+                    };
+                    protocols.push(protocolData);
+                });
             } else {
-                protocols.push(protocolData);
+                // Comportamento Normal (Fármaco Único)
+                const protocolData = {
+                    id: baseId,
+                    name: document.getElementById('drugName').value.trim(),
+                    halfLife: parseFloat(document.getElementById('halfLife').value),
+                    tmax: parseFloat(document.getElementById('tmax').value),
+                    dose: totalDose,
+                    startDate: document.getElementById('startDate').value,
+                    type: recurrenceType,
+                    daysOfWeek: daysOfWeek,
+                    weeksCount: weeksCount,
+                    color: document.getElementById('color').value
+                };
+
+                if (editingProtocolId) {
+                    const index = protocols.findIndex(p => p.id === editingProtocolId);
+                    if (index !== -1) {
+                        protocols[index] = protocolData;
+                    }
+                } else {
+                    protocols.push(protocolData);
+                }
             }
 
             saveProtocols();
@@ -834,7 +956,6 @@
 
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
-            // Obter a data real de HOJE para comparações
             const realToday = new Date();
             const realYear = realToday.getFullYear();
             const realMonth = realToday.getMonth();
@@ -850,13 +971,11 @@
                 const cell = document.createElement('div');
                 cell.className = 'calendar-cell';
                 
-                // Verificar se o dia atual no loop é HOJE ou PASSADO
                 const isToday = (year === realYear && month === realMonth && day === realDay);
                 const isPast = (year < realYear) || 
                                (year === realYear && month < realMonth) || 
                                (year === realYear && month === realMonth && day < realDay);
 
-                // Aplicar as classes CSS correspondentes
                 if (isToday) {
                     cell.classList.add('today');
                 } else if (isPast) {
@@ -870,7 +989,6 @@
                 const cellHeader = document.createElement('div');
                 cellHeader.className = 'cell-header';
                 
-                // Adicionar a etiqueta "HOJE" no título da célula
                 let headerContent = `<span>${day}</span>`;
                 if (isToday) {
                     headerContent = `<span>${day} <span class="today-label">HOJE</span></span>`;
@@ -937,7 +1055,7 @@
             updateDashboard();
         });
 
-        // --- RENDERIZAÇÃO DO GRÁFICO (ALTA RESOLUÇÃO E SINCRONIZADA) ---
+        // --- RENDERIZAÇÃO DO GRÁFICO ---
         function renderChart() {
             const ctx = document.getElementById('stackChart').getContext('2d');
             
@@ -946,7 +1064,6 @@
             const daysInMonth = new Date(year, month + 1, 0).getDate();
             
             const labels = [];
-            // O uso de 8h como ponto avaliado alinha perfeitamente a matemática no momento exato da injeção
             for (let day = 1; day <= daysInMonth; day++) {
                 labels.push(`D${day} 0h`);
                 labels.push(`D${day} 8h`);
@@ -954,11 +1071,9 @@
                 labels.push(`D${day} 18h`);
             }
 
-            // Descobrir nomes únicos de fármacos em todos os protocolos ativos
             const uniqueDrugs = [...new Set(protocols.map(p => p.name))];
             const groupedDatasets = {};
 
-            // Inicializar cada fármaco com um array vazio perfeitamente alinhado com o eixo X (120 slots)
             uniqueDrugs.forEach(drugName => {
                 const protoRef = protocols.find(p => p.name === drugName);
                 groupedDatasets[drugName] = {
@@ -967,19 +1082,16 @@
                 };
             });
 
-            // Avaliar o limite do mês inteiro para garantir que NENHUMA injeção do mês seja esquecida
             const endOfMonth = new Date(year, month, daysInMonth, 23, 59, 59);
             const allInjectionsByProtocol = protocols.map(p => getInjectionDates(p, endOfMonth));
 
             let timeIndex = 0;
-            // Varredura de Tempo Universal (Time-Step Simulation)
             for (let day = 1; day <= daysInMonth; day++) {
-                const hours = [0, 8, 12, 18]; // 8h capta o momento exato em que a agulha entra no corpo
+                const hours = [0, 8, 12, 18]; 
                 
                 for (let hour of hours) {
                     const evalDate = new Date(year, month, day, hour, 0, 0);
                     
-                    // Neste momento exato do tempo, somamos o resíduo de TODOS os protocolos
                     protocols.forEach((p, idx) => {
                         const injections = allInjectionsByProtocol[idx];
                         let activeFromThisProtocol = 0;
@@ -990,7 +1102,6 @@
                             }
                         });
                         
-                        // Garante a sobreposição absoluta sem sobrescrever dados anteriores
                         groupedDatasets[p.name].data[timeIndex] += activeFromThisProtocol;
                     });
                     
@@ -998,11 +1109,10 @@
                 }
             }
 
-            // Converter a matemática somada em linhas visuais para o Chart.js
             const datasets = uniqueDrugs.map(drugName => {
                 const group = groupedDatasets[drugName];
                 const formattedData = group.data.map(val => parseFloat(val.toFixed(2)));
-                let bgColor = group.color + '33'; // Transparência na área sob a curva
+                let bgColor = group.color + '33'; 
 
                 return {
                     label: drugName,
@@ -1060,6 +1170,141 @@
                         }
                     }
                 }
+            });
+
+            renderIndividualCharts(labels, groupedDatasets);
+        }
+
+        function renderIndividualCharts(labels, groupedDatasets) {
+            const container = document.getElementById('individualChartsContainer');
+            container.innerHTML = ''; 
+
+            Object.values(individualChartInstances).forEach(chart => chart.destroy());
+            individualChartInstances = {};
+
+            const drugNames = Object.keys(groupedDatasets);
+            
+            // NOVO: Descobrir quais são os "nomes base" dos blends registrados no sistema
+            const blendBases = commonDrugs.filter(d => d.isBlend).map(d => d.name.replace(' (Blend)', ''));
+            const chartGroups = {};
+
+            // NOVO: Agrupar os fármacos. Se pertencerem a um blend, vão para o mesmo grupo.
+            drugNames.forEach(drugName => {
+                let groupName = drugName;
+                
+                for (let base of blendBases) {
+                    if (drugName.startsWith(base + " - ")) {
+                        groupName = base + " (Composição do Blend)";
+                        break;
+                    }
+                }
+
+                if (!chartGroups[groupName]) {
+                    chartGroups[groupName] = [];
+                }
+                chartGroups[groupName].push({
+                    name: drugName,
+                    group: groupedDatasets[drugName]
+                });
+            });
+
+            // NOVO: Renderizar um gráfico por GRUPO (podendo ter múltiplas linhas se for Blend)
+            Object.keys(chartGroups).forEach(groupName => {
+                const items = chartGroups[groupName]; // Array com os ésteres ou fármaco único
+
+                const panel = document.createElement('div');
+                panel.className = 'individual-chart-panel';
+
+                const title = document.createElement('h3');
+                // Se for fármaco único, mostra a bolinha de cor. Se for blend, mostra um ícone genérico.
+                if (items.length === 1) {
+                    title.innerHTML = `<div class="color-dot" style="background-color: ${items[0].group.color}"></div> ${groupName}`;
+                } else {
+                    title.innerHTML = `🧪 ${groupName}`;
+                }
+                panel.appendChild(title);
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'individual-chart-wrapper';
+                
+                const canvas = document.createElement('canvas');
+                const canvasId = `chart-${groupName.replace(/[^a-zA-Z0-9]/g, '-')}`;
+                canvas.id = canvasId;
+                wrapper.appendChild(canvas);
+                
+                panel.appendChild(wrapper);
+                container.appendChild(panel);
+
+                // Prepara todos os datasets que vão entrar neste gráfico
+                const datasetsForThisChart = items.map(item => {
+                    const formattedData = item.group.data.map(val => parseFloat(val.toFixed(2)));
+                    let bgColor = item.group.color + '33';
+                    
+                    // Simplificar o nome da legenda para não repetir a base do blend
+                    let legendLabel = item.name;
+                    if (items.length > 1) {
+                        legendLabel = item.name.split(' - ')[1] || item.name;
+                    }
+
+                    return {
+                        label: legendLabel,
+                        data: formattedData,
+                        borderColor: item.group.color,
+                        backgroundColor: bgColor,
+                        borderWidth: 2, 
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0,
+                        pointHitRadius: 10,
+                    };
+                });
+
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                individualChartInstances[groupName] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: datasetsForThisChart
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        interaction: {
+                            mode: 'index',
+                            intersect: false,
+                        },
+                        plugins: {
+                            // Mostra a legenda apenas se houver mais do que uma linha (Blend)
+                            legend: { 
+                                display: items.length > 1,
+                                position: 'top',
+                                labels: { boxWidth: 12, font: { size: 10 } }
+                            }, 
+                            tooltip: {
+                                callbacks: {
+                                    title: function(context) {
+                                        return context[0].label;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                title: { display: true, text: 'mg ativos' }
+                            },
+                            x: { 
+                                grid: { display: false },
+                                ticks: { 
+                                    maxRotation: 0,
+                                    callback: function(val, index) {
+                                        return index % 4 === 0 ? this.getLabelForValue(val).split(' ')[0] : '';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
             });
         }
 
