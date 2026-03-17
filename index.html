@@ -222,6 +222,37 @@
             background-color: transparent;
         }
 
+        /* --- Estilos para HOJE e dias PASSADOS --- */
+        .calendar-cell.today {
+            border: 2px solid var(--accent);
+            background-color: #ebf5fb;
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.15);
+        }
+
+        .calendar-cell.past {
+            background-color: #f8f9fa;
+            opacity: 0.65;
+            border-color: #eeeeee;
+        }
+
+        .calendar-cell.past:hover {
+            opacity: 0.95;
+            background-color: #f0f4f8;
+            border-color: var(--accent);
+        }
+
+        .today-label {
+            font-size: 0.65rem;
+            background-color: var(--accent);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-left: 5px;
+            vertical-align: middle;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
         .cell-header {
             display: flex;
             justify-content: space-between;
@@ -803,6 +834,12 @@
 
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
+            // Obter a data real de HOJE para comparações
+            const realToday = new Date();
+            const realYear = realToday.getFullYear();
+            const realMonth = realToday.getMonth();
+            const realDay = realToday.getDate();
+
             for (let i = 0; i < startingDay; i++) {
                 const emptyCell = document.createElement('div');
                 emptyCell.className = 'calendar-cell empty';
@@ -813,13 +850,32 @@
                 const cell = document.createElement('div');
                 cell.className = 'calendar-cell';
                 
+                // Verificar se o dia atual no loop é HOJE ou PASSADO
+                const isToday = (year === realYear && month === realMonth && day === realDay);
+                const isPast = (year < realYear) || 
+                               (year === realYear && month < realMonth) || 
+                               (year === realYear && month === realMonth && day < realDay);
+
+                // Aplicar as classes CSS correspondentes
+                if (isToday) {
+                    cell.classList.add('today');
+                } else if (isPast) {
+                    cell.classList.add('past');
+                }
+                
                 const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
                 
                 cell.onclick = () => openModal(dateString);
                 
                 const cellHeader = document.createElement('div');
                 cellHeader.className = 'cell-header';
-                cellHeader.innerHTML = `<span>${day}</span>`;
+                
+                // Adicionar a etiqueta "HOJE" no título da célula
+                let headerContent = `<span>${day}</span>`;
+                if (isToday) {
+                    headerContent = `<span>${day} <span class="today-label">HOJE</span></span>`;
+                }
+                cellHeader.innerHTML = headerContent;
                 
                 const evalDate = new Date(year, month, day, 20, 0, 0);
                 let hasInjectionToday = false;
